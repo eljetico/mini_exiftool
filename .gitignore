@@ -4,6 +4,8 @@
 .rimrc
 .ruby-version
 .yardoc
+build
+Dockerfile
 Gemfile.lock
 doc
 pkg
