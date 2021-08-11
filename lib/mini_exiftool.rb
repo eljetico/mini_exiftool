@@ -110,6 +110,7 @@ class MiniExiftool
     end
     @filename = nil
     @io = nil
+    @unmapped_tags = TagHash.new
     @values = TagHash.new
     @changed_values = TagHash.new
     @errors = TagHash.new
@@ -201,12 +202,12 @@ class MiniExiftool
 
   # Returns an array of the tags (original tag names) of the read file.
   def tags
-    @values.keys.map { |key| MiniExiftool.original_tag(key) }
+    @values.keys.map { |key| original_tag(key) }
   end
 
   # Returns an array of all changed tags.
   def changed_tags
-    @changed_values.keys.map { |key| MiniExiftool.original_tag(key) }
+    @changed_values.keys.map { |key| original_tag(key) }
   end
 
   # Save the changes to the file.
@@ -222,7 +223,7 @@ class MiniExiftool
     FileUtils.cp filename.encode(@@fs_enc), temp_filename
     all_ok = true
     @changed_values.each do |tag, val|
-      original_tag = MiniExiftool.original_tag(tag)
+      original_tag = original_tag(tag)
       arr_val = val.kind_of?(Array) ? val : [val]
       arr_val.map! {|e| convert_before_save(e)}
       params = '-q -P -overwrite_original '
@@ -275,7 +276,7 @@ class MiniExiftool
   def to_hash
     result = {}
     @values.each do |k,v|
-      result[MiniExiftool.original_tag(k)] = v
+      result[original_tag(k)] = v
     end
     result
   end
@@ -431,6 +432,10 @@ class MiniExiftool
     !!(tag_name =~ /=$/) || @values.key?(tag_name) || super
   end
 
+  def original_tag(key)
+    MiniExiftool.original_tag(key) || @unmapped_tags.fetch(key, nil)
+  end
+
   def parse_output
     adapt_encoding
     set_values JSON.parse(@output).first
@@ -477,6 +482,11 @@ class MiniExiftool
   def set_values hash
     hash.each_pair do |tag,val|
       @values[tag] = convert_after_load(tag, val)
+
+      # Handle tags not available from pstore
+      unless MiniExiftool.original_tag(tag)
+        @unmapped_tags[tag] = tag
+      end
     end
     # Remove filename specific tags use attr_reader
     # MiniExiftool#filename instead
